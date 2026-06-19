@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-PRICES_PATH = PROJECT_ROOT / 'data' / 'raw' / 'stock_prices.csv'
-NEWS_PATH = PROJECT_ROOT / 'data' / 'processed' / 'headlines_with_sentiment.csv'
+PRICES_PATH = PROJECT_ROOT / 'data' / 'raw' / 'stock_prices.parquet'
+NEWS_PATH = PROJECT_ROOT / 'data' / 'processed' / 'headlines_with_sentiment.parquet'
 OUT_DIR = PROJECT_ROOT / 'data' / 'visualisations'
 OUT_PATH = OUT_DIR / 'tsmc_price_with_hawkish_lines_5y.png'
 
@@ -44,11 +44,11 @@ def aggregate_daily_news(news):
     news = news.copy()
     news['finbert_sentiment'] = news['finbert_sentiment'].astype(str).str.lower().str.strip()
     return news.groupby('date').agg(
-        n_articles=('finbert_sentiment', 'size'),
-        vader_mean=('vader_compound', 'mean'),
-        neg_share=('finbert_sentiment', lambda s: (s == 'negative').mean()),
-        neu_share=('finbert_sentiment', lambda s: (s == 'neutral').mean()),
-        pos_share=('finbert_sentiment', lambda s: (s == 'positive').mean()),
+        n_articles = ('finbert_sentiment', 'size'),
+        vader_mean = ('vader_compound', 'mean'),
+        neg_share = ('finbert_sentiment', lambda series: (series == 'negative').mean()),
+        neu_share = ('finbert_sentiment', lambda series: (series == 'neutral').mean()),
+        pos_share = ('finbert_sentiment', lambda series: (series == 'positive').mean()),
     ).reset_index()
 
 
@@ -57,10 +57,10 @@ def select_hawkish_days(daily, min_articles, top_n):
     filtered = daily[daily['n_articles'] >= min_articles].copy()
     if filtered.empty:
         print("no news days after MIN_ARTICLES filter, lower it to 1")
-        return pd.Series([], dtype='datetime64[ns]')
+        return pd.Series([], dtype = 'datetime64[ns]')
 
-    filtered['neg_rank'] = filtered['neg_share'].rank(pct=True, method='average')
-    filtered['vader_rank'] = (-filtered['vader_mean']).rank(pct=True, method='average')
+    filtered['neg_rank'] = filtered['neg_share'].rank(pct = True, method = 'average')
+    filtered['vader_rank'] = (-filtered['vader_mean']).rank(pct = True, method = 'average')
     filtered['hawkish_score'] = (
         NEG_RANK_WEIGHT * filtered['neg_rank']
         + VADER_RANK_WEIGHT * filtered['vader_rank']
@@ -68,31 +68,31 @@ def select_hawkish_days(daily, min_articles, top_n):
 
     top = filtered.sort_values(
         ['hawkish_score', 'neg_share', 'vader_mean', 'n_articles'],
-        ascending=[False, False, True, False],
+        ascending = [False, False, True, False],
     ).head(top_n)
 
     print("top hawkish days (5Y):")
-    print(top[['date', 'n_articles', 'neg_share', 'vader_mean', 'hawkish_score']].to_string(index=False))
+    print(top[['date', 'n_articles', 'neg_share', 'vader_mean', 'hawkish_score']].to_string(index = False))
     return top['date']
 
 
 def main():
     """Plot TSMC price over the last 5 years with hawkish news days overlaid."""
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    OUT_DIR.mkdir(parents = True, exist_ok = True)
 
     if not PRICES_PATH.exists():
         raise FileNotFoundError(f"missing prices file: {PRICES_PATH}")
     if not NEWS_PATH.exists():
         raise FileNotFoundError(f"missing news sentiment file: {NEWS_PATH}")
 
-    prices = pd.read_csv(PRICES_PATH, parse_dates=['date'])
-    news = pd.read_csv(NEWS_PATH, parse_dates=['date'])
+    prices = pd.read_parquet(PRICES_PATH).assign(date = lambda frame: pd.to_datetime(frame['date']))
+    news = pd.read_parquet(NEWS_PATH).assign(date = lambda frame: pd.to_datetime(frame['date']))
 
     for col in ['date', 'symbol']:
         if col not in prices.columns:
             raise ValueError(f"prices file missing column: {col}")
 
-    price_col = next((c for c in PRICE_COLUMN_CANDIDATES if c in prices.columns), None)
+    price_col = next((column for column in PRICE_COLUMN_CANDIDATES if column in prices.columns), None)
     if price_col is None:
         raise ValueError(f"no price column found in prices, tried: {PRICE_COLUMN_CANDIDATES}")
 
@@ -112,7 +112,7 @@ def main():
         raise ValueError(f"no rows for symbol = {tsm_symbol}")
 
     end_date = tsm_prices['date'].max()
-    start_date = end_date - pd.DateOffset(years=LOOKBACK_YEARS)
+    start_date = end_date - pd.DateOffset(years = LOOKBACK_YEARS)
     tsm_window = tsm_prices[
         (tsm_prices['date'] >= start_date) & (tsm_prices['date'] <= end_date)
     ].copy()
@@ -126,15 +126,15 @@ def main():
     top_n = int(os.getenv('TOP_HAWKISH_DAYS', str(DEFAULT_TOP_HAWKISH_DAYS)))
     hawkish_days = select_hawkish_days(daily_window, min_articles, top_n)
 
-    plt.figure(figsize=(14, 6))
-    plt.plot(tsm_window['date'], tsm_window[price_col], linewidth=1.5)
+    plt.figure(figsize = (14, 6))
+    plt.plot(tsm_window['date'], tsm_window[price_col], linewidth = 1.5)
     for hawkish_date in hawkish_days:
-        plt.axvline(hawkish_date, linestyle='--', color='red', linewidth=1, alpha=0.35)
+        plt.axvline(hawkish_date, linestyle = '--', color = 'red', linewidth = 1, alpha = 0.35)
     plt.title(f'{tsm_symbol} price (5Y) with top hawkish dates (dashed red)')
     plt.xlabel('Date')
     plt.ylabel(price_col)
     plt.tight_layout()
-    plt.savefig(OUT_PATH, dpi=PLOT_DPI)
+    plt.savefig(OUT_PATH, dpi = PLOT_DPI)
     plt.close()
 
     print(f"saved {OUT_PATH.name}")

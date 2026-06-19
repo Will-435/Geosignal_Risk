@@ -14,33 +14,33 @@ The pipeline is split into clearly demarcated stages, each driven by a single sc
 
 ```
 geosignal_risk/
-├── README.md
-├── requirements.txt
-├── run_all.py                 # orchestrates the full pipeline
-├── pipelines/                 # data acquisition, feature build, scoring, backtest
-│   ├── fetch_news.py
-│   ├── generate_stock_prices.py
-│   ├── process_rhetoric.py
-│   ├── merge_market_data.py
-│   ├── generate_signals.py
-│   ├── backtesting.py
-│   └── PLA_effect.py
-├── utils/                     # shared helpers
-│   ├── news_scraper.py
-│   ├── nlp_helpers.py
-│   └── finance_metrics.py
-├── models/                    # training and evaluation
-│   ├── train_models.py
-│   ├── model_evaluation.py
-│   ├── confusion_matrix.py
-│   ├── plot_tsmc_hawkish.py
-│   ├── risk_surface.py
-│   └── signal_generator/
-│       └── rf_signal_model.pkl
-└── data/
-    ├── raw/                   # cached headlines, prices
-    ├── processed/             # sentiment, merged features, labels, backtest
-    └── visualisations/        # plots produced by the eval scripts
++-- README.md
++-- requirements.txt
++-- run_all.py                 # orchestrates the full pipeline
++-- pipelines/                 # data acquisition, feature build, scoring, backtest
+|   +-- fetch_news.py
+|   +-- generate_stock_prices.py
+|   +-- process_rhetoric.py
+|   +-- merge_market_data.py
+|   +-- generate_signals.py
+|   +-- backtesting.py
+|   +-- PLA_effect.py
++-- utils/                     # shared helpers
+|   +-- news_scraper.py
+|   +-- nlp_helpers.py
+|   +-- finance_metrics.py
++-- models/                    # training and evaluation
+|   +-- train_models.py
+|   +-- model_evaluation.py
+|   +-- confusion_matrix.py
+|   +-- plot_tsmc_hawkish.py
+|   +-- risk_surface.py
+|   +-- signal_generator/
+|       +-- rf_signal_model.pkl
++-- data/
+    +-- raw/                   # cached headlines, prices
+    +-- processed/             # sentiment, merged features, labels, backtest
+    +-- visualisations/        # plots produced by the eval scripts
 ```
 
 ## A note on API keys

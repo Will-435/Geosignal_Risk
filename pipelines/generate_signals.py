@@ -13,8 +13,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 MODEL_PATH = PROJECT_ROOT / 'models' / 'signal_generator' / 'rf_signal_model.pkl'
-FEATURES_PATH = PROJECT_ROOT / 'data' / 'processed' / 'merged_features.csv'
-OUTPUT_PATH = PROJECT_ROOT / 'data' / 'processed' / 'signals_latest.csv'
+FEATURES_PATH = PROJECT_ROOT / 'data' / 'processed' / 'merged_features.parquet'
+OUTPUT_PATH = PROJECT_ROOT / 'data' / 'processed' / 'signals_latest.parquet'
 
 DEFAULT_RISK_OFF_THRESH = 0.60
 DEFAULT_RISK_ON_THRESH = 0.40
@@ -33,28 +33,28 @@ def load_inputs():
         raise FileNotFoundError(f"merged feature file not found: {FEATURES_PATH}")
 
     model = joblib.load(MODEL_PATH)
-    df = pd.read_csv(FEATURES_PATH)
+    df = pd.read_parquet(FEATURES_PATH)
     if "date" not in df.columns or "symbol" not in df.columns:
-        raise ValueError("expected 'date' and 'symbol' in merged_features.csv")
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        raise ValueError("expected 'date' and 'symbol' in merged_features.parquet")
+    df["date"] = pd.to_datetime(df["date"], errors = "coerce")
     df["symbol"] = df["symbol"].astype(str).str.strip().str.upper()
     return model, df
 
 
 def feature_columns(df):
     """Return the union of text and market feature columns present in df."""
-    text_features = ["vader_compound"] + [c for c in df.columns if c.endswith("_tension")]
-    market_features = [c for c in df.columns if c.startswith(("ret_", "vol_", "ma_"))]
-    return [c for c in (text_features + market_features) if c in df.columns]
+    text_features = ["vader_compound"] + [column for column in df.columns if column.endswith("_tension")]
+    market_features = [column for column in df.columns if column.startswith(("ret_", "vol_", "ma_"))]
+    return [column for column in (text_features + market_features) if column in df.columns]
 
 
-def pick_latest_with_rows(df, lookback_days=DEFAULT_LOOKBACK_DAYS):
+def pick_latest_with_rows(df, lookback_days = DEFAULT_LOOKBACK_DAYS):
     """Return the most recent date in df that actually has rows (handles weekends)."""
     max_date = df["date"].max()
     if pd.isna(max_date):
         return None
     for offset in range(0, lookback_days + 1):
-        candidate = (max_date - timedelta(days=offset)).date()
+        candidate = (max_date - timedelta(days = offset)).date()
         if (df["date"].dt.date == candidate).any():
             return pd.Timestamp(candidate)
     return None
@@ -85,17 +85,17 @@ def main():
         raise SystemExit(0)
 
     df_day[base_features] = df_day[base_features].fillna(0.0)
-    scorable = df_day[["symbol"] + base_features].groupby("symbol", as_index=False).mean()
+    scorable = df_day[["symbol"] + base_features].groupby("symbol", as_index = False).mean()
 
-    symbol_dummies = pd.get_dummies(scorable["symbol"], prefix="sym")
-    scorable = pd.concat([scorable, symbol_dummies], axis=1)
+    symbol_dummies = pd.get_dummies(scorable["symbol"], prefix = "sym")
+    scorable = pd.concat([scorable, symbol_dummies], axis = 1)
 
     if hasattr(model, "feature_names_in_"):
         expected = list(model.feature_names_in_)
     else:
-        expected = base_features + [c for c in scorable.columns if c.startswith("sym_")]
+        expected = base_features + [column for column in scorable.columns if column.startswith("sym_")]
 
-    feature_matrix = scorable.reindex(columns=expected, fill_value=0.0)
+    feature_matrix = scorable.reindex(columns = expected, fill_value = 0.0)
 
     try:
         proba = model.predict_proba(feature_matrix)
@@ -112,9 +112,9 @@ def main():
     signals["signal"] = signals["p_high_vol"].apply(prob_to_signal)
     signals["confidence"] = (signals["p_high_vol"] - PROBABILITY_MIDPOINT).abs() * 2
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    signals[["date", "symbol", "signal", "p_high_vol", "confidence"]].to_csv(
-        OUTPUT_PATH, index=False
+    OUTPUT_PATH.parent.mkdir(parents = True, exist_ok = True)
+    signals[["date", "symbol", "signal", "p_high_vol", "confidence"]].to_parquet(
+        OUTPUT_PATH, index = False
     )
 
     print(f"date scored: {scoring_date.date()}")

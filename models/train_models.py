@@ -13,10 +13,10 @@ from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-MERGED_PATH = PROJECT_ROOT / 'data' / 'processed' / 'merged_features.csv'
-LABELED_PATH = PROJECT_ROOT / 'data' / 'processed' / 'labeled_features.csv'
+MERGED_PATH = PROJECT_ROOT / 'data' / 'processed' / 'merged_features.parquet'
+LABELED_PATH = PROJECT_ROOT / 'data' / 'processed' / 'labeled_features.parquet'
 MODEL_OUT = PROJECT_ROOT / 'models' / 'signal_generator' / 'rf_signal_model.pkl'
-METRICS_OUT = PROJECT_ROOT / 'models' / 'signal_generator' / 'metrics_per_symbol.csv'
+METRICS_OUT = PROJECT_ROOT / 'models' / 'signal_generator' / 'metrics_per_symbol.parquet'
 
 USE_THRESHOLD_LABELS = os.environ.get("USE_THRESHOLD_LABELS", "0") == "1"
 FORWARD_HORIZON_DAYS = int(os.environ.get("FUT_H", "1"))
@@ -63,10 +63,10 @@ def compute_forward_labels(frame, horizon, threshold):
     """Label rows BUY / SELL based on the next-period adj_close return."""
     if "adj_close" not in frame.columns:
         raise ValueError("adj_close required to compute threshold labels")
-    tmp = frame.sort_values(["symbol", "date"], kind="mergesort").copy()
+    tmp = frame.sort_values(["symbol", "date"], kind = "mergesort").copy()
     forward_price = tmp.groupby("symbol")["adj_close"].shift(-horizon)
     forward_return = (forward_price / tmp["adj_close"]) - 1.0
-    out = pd.Series(index=tmp.index, dtype="object")
+    out = pd.Series(index = tmp.index, dtype = "object")
     out[forward_return > threshold] = "BUY"
     out[forward_return < -threshold] = "SELL"
     return out.reindex(frame.index)
@@ -75,7 +75,7 @@ def compute_forward_labels(frame, horizon, threshold):
 def map_existing_labels_to_binary(series):
     """Map a string label column onto {0.0, 1.0} using the positive/negative sets."""
     cleaned = series.astype(str).str.strip().str.lower()
-    out = pd.Series(np.nan, index=cleaned.index, dtype='float')
+    out = pd.Series(np.nan, index = cleaned.index, dtype = 'float')
     out.loc[cleaned.isin(POSITIVE_LABELS)] = 1.0
     out.loc[cleaned.isin(NEGATIVE_LABELS)] = 0.0
     return out
@@ -83,27 +83,27 @@ def map_existing_labels_to_binary(series):
 
 def load_and_merge():
     """Load both feature files and merge on date+symbol, keeping required columns."""
-    df_features = pd.read_csv(MERGED_PATH)
-    df_labels = pd.read_csv(LABELED_PATH)
+    df_features = pd.read_parquet(MERGED_PATH)
+    df_labels = pd.read_parquet(LABELED_PATH)
 
     for frame in (df_features, df_labels):
         if 'date' in frame.columns:
-            frame['date'] = pd.to_datetime(frame['date'], errors="coerce").dt.date
+            frame['date'] = pd.to_datetime(frame['date'], errors = "coerce").dt.date
 
     df_features["symbol"] = normalise_symbol(df_features["symbol"])
     df_labels["symbol"] = normalise_symbol(df_labels["symbol"])
 
-    text_features = ["vader_compound"] + [c for c in df_features.columns if c.endswith("_tension")]
-    market_features = [c for c in df_labels.columns if c.startswith(("ret_", "vol_", "ma_"))]
+    text_features = ["vader_compound"] + [column for column in df_features.columns if column.endswith("_tension")]
+    market_features = [column for column in df_labels.columns if column.startswith(("ret_", "vol_", "ma_"))]
 
-    missing_text = [c for c in text_features if c not in df_features.columns]
+    missing_text = [column for column in text_features if column not in df_features.columns]
     if missing_text:
-        raise ValueError(f"merged_features.csv missing NLP columns: {missing_text}")
+        raise ValueError(f"merged_features.parquet missing NLP columns: {missing_text}")
 
     label_keep = ["date", "symbol"]
     if "adj_close" in df_labels.columns:
         label_keep.append("adj_close")
-    have_labels = [c for c in LABEL_CANDIDATE_COLUMNS if c in df_labels.columns]
+    have_labels = [column for column in LABEL_CANDIDATE_COLUMNS if column in df_labels.columns]
     label_keep += have_labels + market_features
 
     feature_keep = ["date", "symbol"] + text_features
@@ -113,8 +113,8 @@ def load_and_merge():
     merged = pd.merge(
         df_features[feature_keep],
         df_labels[label_keep].drop_duplicates(["date", "symbol"]),
-        on=["date", "symbol"],
-        how="inner",
+        on = ["date", "symbol"],
+        how = "inner",
     )
     return merged, text_features, market_features
 
@@ -126,7 +126,7 @@ def select_label_series(df):
               f"thresh={FORWARD_RETURN_THRESHOLD:.4f})")
         return compute_forward_labels(df, FORWARD_HORIZON_DAYS, FORWARD_RETURN_THRESHOLD)
 
-    label_col = next((c for c in LABEL_CANDIDATE_COLUMNS if c in df.columns), None)
+    label_col = next((column for column in LABEL_CANDIDATE_COLUMNS if column in df.columns), None)
     if label_col is None:
         print("no explicit label column, falling back to threshold labels")
         return compute_forward_labels(df, FORWARD_HORIZON_DAYS, FORWARD_RETURN_THRESHOLD)
@@ -144,15 +144,15 @@ def fit_classifier(train_x, train_y):
         return base_clf
 
     print("running RandomizedSearchCV...")
-    cv_splitter = TimeSeriesSplit(n_splits=3)
+    cv_splitter = TimeSeriesSplit(n_splits = 3)
     search = RandomizedSearchCV(
-        estimator=base_clf,
-        param_distributions=TUNING_GRID,
-        n_iter=TUNING_ITERATIONS,
-        cv=cv_splitter,
-        random_state=RANDOM_STATE,
-        n_jobs=-1,
-        verbose=1,
+        estimator = base_clf,
+        param_distributions = TUNING_GRID,
+        n_iter = TUNING_ITERATIONS,
+        cv = cv_splitter,
+        random_state = RANDOM_STATE,
+        n_jobs = -1,
+        verbose = 1,
     )
     search.fit(train_x, train_y)
     print(f"best params: {search.best_params_}")
@@ -168,7 +168,7 @@ def per_symbol_metrics(test_part, classifier, feature_cols):
         truth = group["label"].astype(int)
         prediction = classifier.predict(group[feature_cols])
         report = classification_report(
-            truth, prediction, digits=4, zero_division=0, output_dict=True
+            truth, prediction, digits = 4, zero_division = 0, output_dict = True
         )
         rows.append({
             "symbol": symbol,
@@ -187,7 +187,7 @@ def per_symbol_metrics(test_part, classifier, feature_cols):
 
 def main():
     """Train the model end-to-end and persist the classifier and per-symbol metrics."""
-    MODEL_OUT.parent.mkdir(parents=True, exist_ok=True)
+    MODEL_OUT.parent.mkdir(parents = True, exist_ok = True)
 
     df, text_features, market_features = load_and_merge()
     label_series = select_label_series(df)
@@ -196,25 +196,25 @@ def main():
     if market_features:
         df[market_features] = df[market_features].fillna(0.0)
 
-    symbol_dummies = pd.get_dummies(df["symbol"], prefix="sym")
-    df = pd.concat([df, symbol_dummies], axis=1)
+    symbol_dummies = pd.get_dummies(df["symbol"], prefix = "sym")
+    df = pd.concat([df, symbol_dummies], axis = 1)
 
     feature_cols = text_features + market_features + list(symbol_dummies.columns)
 
     binary_labels = map_existing_labels_to_binary(label_series)
     train_df = pd.concat(
         [df[["date", "symbol"]], df[feature_cols], binary_labels.rename("label")],
-        axis=1,
+        axis = 1,
     )
 
     before = len(train_df)
-    train_df = train_df.dropna(subset=["label"])
+    train_df = train_df.dropna(subset = ["label"])
     after = len(train_df)
     print(f"kept {after} rows (dropped {before - after} unlabelled)")
     if after == 0:
         raise RuntimeError("no rows left after label filtering")
 
-    train_df = train_df.sort_values("date", kind="mergesort")
+    train_df = train_df.sort_values("date", kind = "mergesort")
     split_index = int(len(train_df) * TRAIN_FRACTION)
     train_part = train_df.iloc[:split_index].copy()
     test_part = train_df.iloc[split_index:].copy()
@@ -224,12 +224,12 @@ def main():
     print(classification_report(
         test_part["label"].astype(int),
         classifier.predict(test_part[feature_cols]),
-        digits=4, zero_division=0,
+        digits = 4, zero_division = 0,
     ))
 
     rows = per_symbol_metrics(test_part, classifier, feature_cols)
     if rows:
-        pd.DataFrame(rows).to_csv(METRICS_OUT, index=False)
+        pd.DataFrame(rows).to_parquet(METRICS_OUT, index = False)
     else:
         print("not enough samples per symbol to save metrics")
 

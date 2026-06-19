@@ -17,7 +17,7 @@ NEWSAPI_PAGE_SIZE = 20
 GNEWS_MAX = 20
 MEDIASTACK_LIMIT = 20
 
-OUTPUT_REL_PATH = Path('data') / 'raw' / 'multisource_headlines.csv'
+OUTPUT_REL_PATH = Path('data') / 'raw' / 'multisource_headlines.parquet'
 
 
 def _today():
@@ -37,8 +37,8 @@ def fetch_newsapi():
     articles = response.json().get("articles", [])
     today = _today()
     rows = [
-        {"source": "NewsAPI", "title": a["title"], "url": a["url"], "date": today}
-        for a in articles if a.get("title")
+        {"source": "NewsAPI", "title": article["title"], "url": article["url"], "date": today}
+        for article in articles if article.get("title")
     ]
     return pd.DataFrame(rows)
 
@@ -55,8 +55,8 @@ def fetch_gnews():
     articles = response.json().get("articles", [])
     today = _today()
     rows = [
-        {"source": "GNews", "title": a["title"], "url": a["url"], "date": today}
-        for a in articles if a.get("title")
+        {"source": "GNews", "title": article["title"], "url": article["url"], "date": today}
+        for article in articles if article.get("title")
     ]
     return pd.DataFrame(rows)
 
@@ -73,8 +73,8 @@ def fetch_mediastack():
     articles = response.json().get("data", [])
     today = _today()
     rows = [
-        {"source": "Mediastack", "title": a["title"], "url": a["url"], "date": today}
-        for a in articles if a.get("title")
+        {"source": "Mediastack", "title": article["title"], "url": article["url"], "date": today}
+        for article in articles if article.get("title")
     ]
     return pd.DataFrame(rows)
 
@@ -98,9 +98,9 @@ if __name__ == "__main__":
             print(f"{label} failed: {exc}")
 
     if frames:
-        merged = pd.concat(frames).drop_duplicates(subset=["title", "url"])
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        merged.to_csv(output_path, index=False)
+        merged = pd.concat(frames).drop_duplicates(subset = ["title", "url"])
+        output_path.parent.mkdir(parents = True, exist_ok = True)
+        merged.to_parquet(output_path, index = False)
         print(f"saved {len(merged)} headlines")
     else:
         print("no headlines collected")

@@ -26,11 +26,11 @@ def apply_finbert(df):
     sentiments = []
     for text in df["title"]:
         tokens = _finbert_tokenizer(
-            text, return_tensors="pt", truncation=True, max_length=MAX_TOKEN_LENGTH
+            text, return_tensors = "pt", truncation = True, max_length = MAX_TOKEN_LENGTH
         )
         with torch.no_grad():
             outputs = _finbert_model(**tokens)
-            probs = torch.nn.functional.softmax(outputs.logits, dim=1)
+            probs = torch.nn.functional.softmax(outputs.logits, dim = 1)
             label_index = torch.argmax(probs).item()
             sentiments.append(FINBERT_LABELS[label_index])
     df["finbert_sentiment"] = sentiments

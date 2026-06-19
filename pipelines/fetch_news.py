@@ -9,7 +9,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from utils.news_scraper import fetch_newsapi, fetch_gnews, fetch_mediastack
 
 
-OUTPUT_PATH = PROJECT_ROOT / 'data' / 'raw' / 'multisource_headlines.csv'
+OUTPUT_PATH = PROJECT_ROOT / 'data' / 'raw' / 'multisource_headlines.parquet'
 
 FETCHERS = [
     ("NewsAPI", fetch_newsapi),
@@ -36,9 +36,9 @@ def main():
         print("no headlines collected, skipping save")
         return
 
-    merged = pd.concat(frames).drop_duplicates(subset=["title", "url"])
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_csv(OUTPUT_PATH, index=False)
+    merged = pd.concat(frames).drop_duplicates(subset = ["title", "url"])
+    OUTPUT_PATH.parent.mkdir(parents = True, exist_ok = True)
+    merged.to_parquet(OUTPUT_PATH, index = False)
     print(f"saved {len(merged)} headlines")
 
 

@@ -12,7 +12,7 @@ import yfinance as yf
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-OUT_CSV = PROJECT_ROOT / 'data' / 'processed' / 'pla_event_study_bp.csv'
+OUT_PARQUET = PROJECT_ROOT / 'data' / 'processed' / 'pla_event_study_bp.parquet'
 OUT_PNG = PROJECT_ROOT / 'data' / 'visualisations' / 'pla_event_study_bp.png'
 
 DEFAULT_TICKER = os.environ.get('PLA_TICKER', 'TSM')
@@ -45,7 +45,7 @@ def to_basis_points(value):
 
 def get_price_history(ticker, start, end):
     """Pull a clean OHLC dataframe from yfinance for the given ticker and window."""
-    df = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)
+    df = yf.download(ticker, start = start, end = end, progress = False, auto_adjust = False)
 
     if df is None or df.empty:
         raise ValueError(f"no data returned for {ticker}, check symbol and connectivity")
@@ -55,20 +55,20 @@ def get_price_history(ticker, start, end):
 
     df = df.reset_index()
     if 'Date' not in df.columns and 'Datetime' in df.columns:
-        df = df.rename(columns={'Datetime': 'Date'})
+        df = df.rename(columns = {'Datetime': 'Date'})
     if 'Date' not in df.columns:
         raise ValueError(f"expected Date column, got: {list(df.columns)}")
 
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce').dt.date
+    df['Date'] = pd.to_datetime(df['Date'], errors = 'coerce').dt.date
     needed = ['Open', 'Close']
-    missing = [c for c in needed if c not in df.columns]
+    missing = [column for column in needed if column not in df.columns]
     if missing:
         raise ValueError(f"missing OHLC columns: {missing}")
 
-    df['Open'] = pd.to_numeric(df['Open'], errors='coerce')
-    df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+    df['Open'] = pd.to_numeric(df['Open'], errors = 'coerce')
+    df['Close'] = pd.to_numeric(df['Close'], errors = 'coerce')
 
-    return df.dropna(subset=['Date', 'Open', 'Close']).reset_index(drop=True)
+    return df.dropna(subset = ['Date', 'Open', 'Close']).reset_index(drop = True)
 
 
 def nearest_trading_index(dates, target_date):
@@ -102,7 +102,7 @@ def compute_event_metrics(prices, event):
         'reopen_gap_bp': float(reopen_gap_bp) if np.isfinite(reopen_gap_bp) else np.nan,
     }
 
-    closes = prices['Close'].to_numpy(dtype=float)
+    closes = prices['Close'].to_numpy(dtype = float)
     for (left, right) in EVENT_WINDOWS:
         left_idx = max(0, event_open_idx + int(left))
         right_idx = min(len(prices) - 1, event_open_idx + int(right))
@@ -125,40 +125,40 @@ def compute_event_metrics(prices, event):
 
 def main():
     """Pull TSMC prices over the event range, compute per-event metrics, plot and save."""
-    OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
-    OUT_PNG.parent.mkdir(parents=True, exist_ok=True)
+    OUT_PARQUET.parent.mkdir(parents = True, exist_ok = True)
+    OUT_PNG.parent.mkdir(parents = True, exist_ok = True)
 
-    earliest_start = min(pd.to_datetime(e['start']) for e in PLA_EVENTS) - pd.Timedelta(days=BUFFER_DAYS)
-    latest_end = max(pd.to_datetime(e['end']) for e in PLA_EVENTS) + pd.Timedelta(days=BUFFER_DAYS)
+    earliest_start = min(pd.to_datetime(event['start']) for event in PLA_EVENTS) - pd.Timedelta(days = BUFFER_DAYS)
+    latest_end = max(pd.to_datetime(event['end']) for event in PLA_EVENTS) + pd.Timedelta(days = BUFFER_DAYS)
 
     prices = get_price_history(DEFAULT_TICKER, str(earliest_start.date()), str(latest_end.date()))
 
     rows = [compute_event_metrics(prices, event) for event in PLA_EVENTS]
-    df = pd.DataFrame(rows).sort_values('start').reset_index(drop=True)
+    df = pd.DataFrame(rows).sort_values('start').reset_index(drop = True)
 
     for col in df.columns:
         is_non_scalar = df[col].apply(
-            lambda v: isinstance(v, (list, tuple, dict, pd.Series, np.ndarray))
+            lambda value: isinstance(value, (list, tuple, dict, pd.Series, np.ndarray))
         )
         if is_non_scalar.any():
             raise ValueError(f"non-scalar values found in column: {col}")
 
-    df.to_csv(OUT_CSV, index=False)
+    df.to_parquet(OUT_PARQUET, index = False)
 
-    bp_values = pd.to_numeric(df['cc_bp_-1_1'], errors='coerce').to_numpy(dtype=float)
+    bp_values = pd.to_numeric(df['cc_bp_-1_1'], errors = 'coerce').to_numpy(dtype = float)
     finite_mask = np.isfinite(bp_values)
     x_positions = np.arange(len(bp_values))[finite_mask]
     y_values = bp_values[finite_mask]
 
-    plt.figure(figsize=(12, 5))
+    plt.figure(figsize = (12, 5))
     plt.bar(x_positions, y_values)
-    plt.axhline(0, linestyle='--', linewidth=1)
-    plt.xticks(x_positions, df.loc[finite_mask, 'start'].tolist(), rotation=45, ha='right')
+    plt.axhline(0, linestyle = '--', linewidth = 1)
+    plt.xticks(x_positions, df.loc[finite_mask, 'start'].tolist(), rotation = 45, ha = 'right')
     plt.title(f'{DEFAULT_TICKER} bp move around PLA exercise start (Close-Close, [-1,+1])')
     plt.xlabel('Event start date')
     plt.ylabel('bp')
     plt.tight_layout()
-    plt.savefig(OUT_PNG, dpi=PLOT_DPI)
+    plt.savefig(OUT_PNG, dpi = PLOT_DPI)
     plt.close()
 
     print(f"event study saved: {len(df)} events")

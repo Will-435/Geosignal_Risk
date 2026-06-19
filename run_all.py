@@ -29,7 +29,7 @@ def main():
             print(f"missing: {relative}")
             continue
         print(f"running: {relative}")
-        subprocess.run([sys.executable, str(path)], check=False, cwd=PROJECT_ROOT)
+        subprocess.run([sys.executable, str(path)], check = False, cwd = PROJECT_ROOT)
 
 
 if __name__ == '__main__':

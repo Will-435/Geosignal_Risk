@@ -6,7 +6,7 @@ import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_PATH = PROJECT_ROOT / 'data' / 'raw' / 'stock_prices.csv'
+OUTPUT_PATH = PROJECT_ROOT / 'data' / 'raw' / 'stock_prices.parquet'
 
 LOOKBACK_YEARS = 3
 TICKERS = {
@@ -24,7 +24,7 @@ def get_date_range():
     end = pd.to_datetime(end_env).date() if end_env else datetime.now(UTC).date()
     start = (
         pd.to_datetime(start_env).date() if start_env
-        else end - timedelta(days=365 * LOOKBACK_YEARS)
+        else end - timedelta(days = 365 * LOOKBACK_YEARS)
     )
     return start, end
 
@@ -40,12 +40,12 @@ def fetch_prices():
 
     raw = yf.download(
         list(TICKERS.values()),
-        start=start_date.isoformat(),
-        end=(end_date + timedelta(days=1)).isoformat(),
-        auto_adjust=False,
-        progress=False,
-        group_by="column",
-        threads=True,
+        start = start_date.isoformat(),
+        end = (end_date + timedelta(days = 1)).isoformat(),
+        auto_adjust = False,
+        progress = False,
+        group_by = "column",
+        threads = True,
     )
     if raw.empty:
         raise RuntimeError("no price data returned, check tickers or connectivity")
@@ -60,15 +60,15 @@ def fetch_prices():
         per_symbol["symbol"] = label
         frames.append(per_symbol)
 
-    combined = pd.concat(frames, ignore_index=True)
+    combined = pd.concat(frames, ignore_index = True)
     combined["date"] = pd.to_datetime(combined["date"]).dt.date.astype(str)
 
     ordered_cols = ["date", "symbol", "adj_close", "close", "open", "high", "low", "volume"]
-    return combined[[c for c in ordered_cols if c in combined.columns]]
+    return combined[[column for column in ordered_cols if column in combined.columns]]
 
 
 if __name__ == "__main__":
     df = fetch_prices()
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(OUTPUT_PATH, index=False)
+    OUTPUT_PATH.parent.mkdir(parents = True, exist_ok = True)
+    df.to_parquet(OUTPUT_PATH, index = False)
     print(f"saved {len(df)} rows of stock prices")
