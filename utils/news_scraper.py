@@ -7,15 +7,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 try:
-    from utils.config import NEWSAPI_KEY, GNEWS_KEY, MEDIASTACK_KEY
+    from utils.config import NEWSAPI_KEY, NEWSAPI_AI_KEY, MEDIASTACK_KEY, GNEWS_KEY
 except ImportError:
     NEWSAPI_KEY = ""
-    GNEWS_KEY = ""
+    NEWSAPI_AI_KEY = ""
     MEDIASTACK_KEY = ""
+    GNEWS_KEY = ""
+# Paste your keys here using the links in README.md
 
 NEWSAPI_PAGE_SIZE = 20
-GNEWS_MAX = 20
+NEWSAPI_AI_COUNT = 20
 MEDIASTACK_LIMIT = 20
+GNEWS_MAX = 20
 
 OUTPUT_REL_PATH = Path('data') / 'raw' / 'multisource_headlines.parquet'
 
@@ -34,6 +37,8 @@ def fetch_newsapi():
         f"&apiKey={NEWSAPI_KEY}"
     )
     response = requests.get(url)
+    if not response.ok:
+        raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
     articles = response.json().get("articles", [])
     today = _today()
     rows = [
@@ -43,19 +48,28 @@ def fetch_newsapi():
     return pd.DataFrame(rows)
 
 
-def fetch_gnews():
-    """Fetch defence/Taiwan/military headlines from GNews."""
-    if not GNEWS_KEY:
+def fetch_newsapi_ai():
+    """Fetch defence/Taiwan/military headlines from NewsAPI.ai (Event Registry)."""
+    if not NEWSAPI_AI_KEY:
         return pd.DataFrame()
-    url = (
-        f"https://gnews.io/api/v4/search?q=military+OR+defense+OR+China+Taiwan"
-        f"&lang=en&country=us&max={GNEWS_MAX}&token={GNEWS_KEY}"
-    )
-    response = requests.get(url)
-    articles = response.json().get("articles", [])
+    url = "https://eventregistry.org/api/v1/article/getArticles"
+    payload = {
+        "action": "getArticles",
+        "keyword": ["military", "defense", "Taiwan", "China"],
+        "keywordOper": "or",
+        "lang": "eng",
+        "articlesSortBy": "date",
+        "articlesCount": NEWSAPI_AI_COUNT,
+        "resultType": "articles",
+        "apiKey": NEWSAPI_AI_KEY,
+    }
+    response = requests.post(url, json=payload)
+    if not response.ok:
+        raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+    articles = response.json().get("articles", {}).get("results", [])
     today = _today()
     rows = [
-        {"source": "GNews", "title": article["title"], "url": article["url"], "date": today}
+        {"source": "NewsAPI.ai", "title": article["title"], "url": article["url"], "date": today}
         for article in articles if article.get("title")
     ]
     return pd.DataFrame(rows)
@@ -70,10 +84,32 @@ def fetch_mediastack():
         f"&keywords=defense,military,Taiwan,China&languages=en&limit={MEDIASTACK_LIMIT}"
     )
     response = requests.get(url)
+    if not response.ok:
+        raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
     articles = response.json().get("data", [])
     today = _today()
     rows = [
         {"source": "Mediastack", "title": article["title"], "url": article["url"], "date": today}
+        for article in articles if article.get("title")
+    ]
+    return pd.DataFrame(rows)
+
+
+def fetch_gnews():
+    """Fetch defence/Taiwan/military headlines from GNews."""
+    if not GNEWS_KEY:
+        return pd.DataFrame()
+    url = (
+        f"https://gnews.io/api/v4/search?q=military+OR+defense+OR+China+Taiwan"
+        f"&lang=en&country=us&max={GNEWS_MAX}&token={GNEWS_KEY}"
+    )
+    response = requests.get(url)
+    if not response.ok:
+        raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+    articles = response.json().get("articles", [])
+    today = _today()
+    rows = [
+        {"source": "GNews", "title": article["title"], "url": article["url"], "date": today}
         for article in articles if article.get("title")
     ]
     return pd.DataFrame(rows)
@@ -84,9 +120,12 @@ if __name__ == "__main__":
     output_path = project_root / OUTPUT_REL_PATH
 
     frames = []
-    for label, fetcher in [("NewsAPI", fetch_newsapi),
-                           ("GNews", fetch_gnews),
-                           ("Mediastack", fetch_mediastack)]:
+    for label, fetcher in [
+        ("NewsAPI", fetch_newsapi),
+        ("NewsAPI.ai", fetch_newsapi_ai),
+        ("Mediastack", fetch_mediastack),
+        ("GNews", fetch_gnews),
+        ]:
         try:
             frame = fetcher()
             if not frame.empty:

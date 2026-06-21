@@ -6,15 +6,21 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.news_scraper import fetch_newsapi, fetch_gnews, fetch_mediastack
+from utils.news_scraper import (
+    fetch_newsapi,
+    fetch_newsapi_ai,
+    fetch_mediastack,
+    fetch_gnews,
+)
 
 
 OUTPUT_PATH = PROJECT_ROOT / 'data' / 'raw' / 'multisource_headlines.parquet'
 
 FETCHERS = [
     ("NewsAPI", fetch_newsapi),
-    ("GNews", fetch_gnews),
+    ("NewsAPI.ai", fetch_newsapi_ai),
     ("Mediastack", fetch_mediastack),
+    ("GNews", fetch_gnews),
 ]
 
 

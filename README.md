@@ -2,6 +2,14 @@
 
 A research pipeline that turns geopolitical news flow and PLA military activity into a forward-looking probability of a high-volatility regime in Taiwan-exposed equity markets, and uses that probability to dynamically scale exposure to TSMC.
 
+## NEWS SOURCES - WHERE TO GET YOUR API KEYS
+Register with the following and paste your keys into news_scraper.py as hyper parameters.
+
+#### NewsAPI dashboard: https://newsapi.org
+#### NewsAPI.ai (Event Registry) dashboard: https://newsapi.ai
+#### Mediastack dashboard: https://mediastack.com
+#### GNews dashboard: https://gnews.io
+
 ## What this project predicts
 
 GeoSignalRisk is built around a deliberate refusal to predict the direction of returns. Direction prediction in equities is an exceptionally noisy target: the signal-to-noise ratio is so low that even a strong model rarely produces a stable, economically meaningful edge once realistic transaction costs and execution are accounted for. The framing here is different. The pipeline asks the much more tractable question of whether the next five trading days are likely to be a stressed, high-volatility regime, given the prevailing news sentiment, geopolitical tension scores, and recent market state. That probability, rather than a directional forecast, is what drives the trading rule. When the probability of a high-volatility regime is high, exposure is reduced toward a configurable floor; when it is low, the strategy stays close to fully invested. The end result is a risk-aware overlay on top of a passive holding, designed to preserve the bulk of long-run returns while clipping the worst drawdowns associated with geopolitical shocks. The choice of Taiwan-exposed equities (primarily TSM, with INTC and Samsung as secondary references) reflects the underlying research interest in the PLA-Taiwan tension channel and its observable market signature.
