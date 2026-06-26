@@ -1,4 +1,8 @@
-"""Run every pipeline stage in order, skipping any missing or failing scripts."""
+"""
+Run every pipeline stage in order, skipping any missing or failing scripts.
+
+I'm adding this line to make sure that I can edit files using the terminal.
+"""
 
 import subprocess
 import sys
